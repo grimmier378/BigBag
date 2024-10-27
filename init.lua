@@ -3,9 +3,14 @@ local ImGui                   = require("ImGui")
 local shouldDrawGUI           = true
 local scriptName              = "BigBag"
 local IsRunning               = false
-
+local ThemeLoader             = require('lib.theme_loader')
+local themeFile               = string.format('%s/MyUI/ThemeZ.lua', mq.configDir)
+local Theme                   = require('defaults.themes')
 local imgPath                 = string.format("%s/%s/images/bag.png", mq.luaDir, scriptName)
 local minImg                  = mq.CreateTexture(imgPath)
+local utils                   = require('mq.Utils')
+local configFile              = string.format("%s/MyUI/BigBag/%s/%s.lua", mq.configDir, mq.TLO.EverQuest.Server(), mq.TLO.Me.Name())
+
 -- Constants
 local ICON_WIDTH              = 40
 local ICON_HEIGHT             = 40
@@ -34,6 +39,32 @@ local show_item_background    = true
 
 local start_time              = os.time()
 local filter_text             = ""
+local themeName               = "Default"
+local settings                = {}
+local defaults                = {
+	MIN_SLOTS_WARN = 3,
+	show_item_background = true,
+	sort_order = { name = false, stack = false, },
+	themeName = "Default",
+}
+
+local function loadSettings()
+	if utils.File.Exists(configFile) then
+		settings = dofile(configFile)
+	else
+		settings = defaults
+	end
+
+	if utils.File.Exists(themeFile) then
+		Theme = dofile(themeFile)
+	end
+
+
+	themeName = settings.themeName ~= nil and settings.themeName or defaults.themeName
+	MIN_SLOTS_WARN = settings.MIN_SLOTS_WARN ~= nil and settings.MIN_SLOTS_WARN or defaults.MIN_SLOTS_WARN
+	show_item_background = settings.show_item_background ~= nil and settings.show_item_background or defaults.show_item_background
+	sort_order = settings.sort_order ~= nil and settings.sort_order or defaults.sort_order
+end
 
 local function help_marker(desc)
 	ImGui.TextDisabled("(?)")
@@ -128,40 +159,61 @@ end
 
 -- Display the collapasable menu area above the items
 local function display_bag_options()
-	if not ImGui.CollapsingHeader("Bag Options") then
-		ImGui.NewLine()
-		return
-	end
-	local changed = false
-	sort_order.name, changed = ImGui.Checkbox("Name", sort_order.name)
-	if changed then
-		needSort = true
-	end
-	ImGui.SameLine()
-	help_marker("Order items from your inventory sorted by the name of the item.")
-	local pressed = false
-	sort_order.stack, pressed = ImGui.Checkbox("Stack", sort_order.stack)
-	if pressed then
-		needSort = true
-	end
-	ImGui.SameLine()
-	help_marker("Order items with the largest stacks appearing first.")
+	if ImGui.CollapsingHeader("Bag Options") then
+		local changed = false
+		sort_order.name, changed = ImGui.Checkbox("Name", sort_order.name)
+		if changed then
+			needSort = true
+			settings.sort_order.name = sort_order.name
+			mq.pickle(configFile, settings)
+		end
+		ImGui.SameLine()
+		help_marker("Order items from your inventory sorted by the name of the item.")
 
-	if ImGui.Checkbox("Show Slot Background", show_item_background)
-	then
-		show_item_background = true
-	else
-		show_item_background = false
+		local pressed = false
+		sort_order.stack, pressed = ImGui.Checkbox("Stack", sort_order.stack)
+		if pressed then
+			needSort = true
+			settings.sort_order.stack = sort_order.stack
+			mq.pickle(configFile, settings)
+		end
+		ImGui.SameLine()
+		help_marker("Order items with the largest stacks appearing first.")
+
+		local pressed2 = false
+		show_item_background, pressed2 = ImGui.Checkbox("Show Slot Background", show_item_background)
+		if pressed2 then
+			settings.show_item_background = show_item_background
+			mq.pickle(configFile, settings)
+		end
+		ImGui.SameLine()
+		help_marker("Removes the background texture to give your bag a cool modern look.")
+
+		ImGui.SetNextItemWidth(100)
+		MIN_SLOTS_WARN = ImGui.InputInt("Min Slots Warning", MIN_SLOTS_WARN, 1, 10)
+		if MIN_SLOTS_WARN ~= settings.MIN_SLOTS_WARN then
+			settings.MIN_SLOTS_WARN = MIN_SLOTS_WARN
+			mq.pickle(configFile, settings)
+		end
+		ImGui.SameLine()
+		help_marker("Minimum number of slots before the warning color is displayed.")
 	end
-	ImGui.SameLine()
-	help_marker("Removes the background texture to give your bag a cool modern look.")
 
-	ImGui.SetNextItemWidth(100)
-	MIN_SLOTS_WARN = ImGui.InputInt("Min Slots Warning", MIN_SLOTS_WARN, 1, 10)
-	ImGui.SameLine()
-	help_marker("Minimum number of slots before the warning color is displayed.")
-
-
+	if ImGui.CollapsingHeader("Theme Settings##BigBag") then
+		ImGui.Text("Cur Theme: %s", themeName)
+		-- Combo Box Load Theme
+		if ImGui.BeginCombo("Load Theme##BigBag", themeName) then
+			for k, data in pairs(Theme.Theme) do
+				local isSelected = data.Name == themeName
+				if ImGui.Selectable(data.Name, isSelected) then
+					settings.themeName = data.Name
+					themeName = settings.themeName
+					mq.pickle(configFile, settings)
+				end
+			end
+			ImGui.EndCombo()
+		end
+	end
 	ImGui.Separator()
 	ImGui.NewLine()
 end
@@ -394,6 +446,8 @@ local function apply_style()
 end
 
 local function renderBtn()
+	local colorCount, styleCount = ThemeLoader.StartTheme(themeName, Theme)
+
 	if FreeSlots > MIN_SLOTS_WARN then
 		ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetStyleColor(ImGuiCol.Button))
 		ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ImGui.GetStyleColor(ImGuiCol.ButtonHovered))
@@ -424,14 +478,14 @@ local function renderBtn()
 		end
 	end
 
-	ImGui.PopStyleColor(5)
+	ThemeLoader.EndTheme(colorCount, styleCount)
 	ImGui.End()
 end
 --- ImGui Program Loop
 local function RenderGUI()
 	if not IsRunning then return end
 	if shouldDrawGUI then
-		apply_style()
+		local colorCount, styleCount = ThemeLoader.StartTheme(themeName, Theme)
 
 		local open, show = ImGui.Begin(string.format("Big Bag"), true, ImGuiWindowFlags.NoScrollbar)
 		if not open then
@@ -465,7 +519,7 @@ local function RenderGUI()
 
 			display_item_on_cursor()
 		end
-		ImGui.PopStyleColor(5)
+		ThemeLoader.EndTheme(colorCount, styleCount)
 		ImGui.End()
 	end
 
@@ -483,7 +537,7 @@ end
 
 local function init()
 	IsRunning = true
-
+	loadSettings()
 	create_inventory()
 	mq.bind("/bigbag", CommandHandler)
 	mq.imgui.init("BigBagGUI", RenderGUI)
