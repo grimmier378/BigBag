@@ -291,8 +291,8 @@ end
 local function draw_item_icon(item, iconWidth, iconHeight)
 	-- Capture original cursor position
 	local cursor_x, cursor_y = ImGui.GetCursorPos()
-	local offsetX, offsetY = iconWidth - 1, iconHeight / 2
-	-- Draw the background box
+	local offsetX, offsetY = iconWidth - 1, iconHeight / 1.5
+	local offsetXCharges, offsetYCharges = 1, offsetY / 2 -- Draw the background box
 	if show_item_background then
 		ImGui.DrawTextureAnimation(animBox, iconWidth, iconHeight)
 	end
@@ -314,7 +314,14 @@ local function draw_item_icon(item, iconWidth, iconHeight)
 		ImGui.SetCursorPos((cursor_x + offsetX) - TextSize, cursor_y + offsetY)
 		ImGui.DrawTextureAnimation(animBox, TextSize, 4)
 		ImGui.SetCursorPos((cursor_x + offsetX) - TextSize, cursor_y + offsetY)
-		ImGui.TextUnformatted(tostring(item.Stack()))
+		ImGui.TextColored(ImVec4(0, 1, 1, 1), tostring(item.Stack()))
+	end
+	local TextSize = ImGui.CalcTextSize(tostring(item.Charges()))
+	if item.Charges() >= 1 then
+		ImGui.SetCursorPos((cursor_x + offsetXCharges), cursor_y + offsetYCharges)
+		ImGui.DrawTextureAnimation(animBox, TextSize, 4)
+		ImGui.SetCursorPos((cursor_x + offsetXCharges), cursor_y + offsetYCharges)
+		ImGui.TextColored(ImVec4(1, 1, 0, 1), tostring(item.Charges()))
 	end
 	ImGui.SetWindowFontScale(1.0)
 
