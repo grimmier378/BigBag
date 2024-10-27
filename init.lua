@@ -454,7 +454,7 @@ end
 
 local function display_details()
 	ImGui.SetWindowFontScale(1.0)
-	if ImGui.BeginTable("Details", 7, bit32.bor(ImGuiTableFlags.Borders, ImGuiTableFlags.Resizable, ImGuiTableFlags.Hideable, ImGuiTableFlags.Reorderable)) then
+	if ImGui.BeginTable("Details", 7, bit32.bor(ImGuiTableFlags.Borders, ImGuiTableFlags.ScrollY, ImGuiTableFlags.Resizable, ImGuiTableFlags.Hideable, ImGuiTableFlags.Reorderable)) then
 		ImGui.TableSetupColumn('Icon', ImGuiTableColumnFlags.WidthStretch)
 		ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthFixed, 100)
 		ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch)
@@ -462,6 +462,7 @@ local function display_details()
 		ImGui.TableSetupColumn('Worn EFX', ImGuiTableColumnFlags.WidthStretch)
 		ImGui.TableSetupColumn('Clicky', ImGuiTableColumnFlags.WidthStretch)
 		ImGui.TableSetupColumn('Charges', ImGuiTableColumnFlags.WidthStretch)
+		ImGui.TableSetupScrollFreeze(0, 1)
 		ImGui.TableHeadersRow()
 		for index, _ in ipairs(items) do
 			if string.match(string.lower(items[index].Name()), string.lower(filter_text)) then
