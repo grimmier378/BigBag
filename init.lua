@@ -452,8 +452,8 @@ local function renderBtn()
 		ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetStyleColor(ImGuiCol.Button))
 		ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ImGui.GetStyleColor(ImGuiCol.ButtonHovered))
 	else
-		ImGui.PushStyleColor(ImGuiCol.Button, 1.000, 0.354, 0.0, 0.5)
-		ImGui.PushStyleColor(ImGuiCol.ButtonHovered, 1.000, 0.354, 0.0, 0.8)
+		ImGui.PushStyleColor(ImGuiCol.Button, 1.000, 0.354, 0.0, 0.2)
+		ImGui.PushStyleColor(ImGuiCol.ButtonHovered, 1.000, 0.204, 0.0, 0.4)
 	end
 	local openBtn, showBtn = ImGui.Begin(string.format("Big Bag##Mini"), true, bit32.bor(ImGuiWindowFlags.AlwaysAutoResize, ImGuiWindowFlags.NoTitleBar, ImGuiWindowFlags.NoCollapse))
 	if not openBtn then
