@@ -359,20 +359,16 @@ local function draw_item_icon(item, iconWidth, iconHeight)
 		if item.ItemSlot2() == -1 then
 			mq.cmd("/itemnotify " .. item.ItemSlot() .. " leftmouseup")
 		else
-			print(item.ItemSlot2())
+			-- print(item.ItemSlot2())
 			mq.cmd("/itemnotify in " .. to_pack(item.ItemSlot()) .. " " .. to_bag_slot(item.ItemSlot2()) .. " leftmouseup")
 		end
 	end
-
-	-- Right-click mouse works on bag items like in-game action
-	if ImGui.IsItemClicked(ImGuiMouseButton.Right) then
-		if ImGui.IsKeyPressed(ImGuiMod.Ctrl) then
-			local link = item.ItemLink('CLICKABLE')()
-			mq.cmdf('/executelink %s', link)
-		else
-			mq.cmdf('/useitem "%s"', item.Name())
-			clicked = true
-		end
+	if ImGui.IsKeyDown(ImGuiMod.Ctrl) and ImGui.IsItemClicked(ImGuiMouseButton.Right) then
+		local link = item.ItemLink('CLICKABLE')()
+		mq.cmdf('/executelink %s', link)
+	elseif ImGui.IsItemClicked(ImGuiMouseButton.Right) then
+		mq.cmdf('/useitem "%s"', item.Name())
+		clicked = true
 	end
 	local function mouse_over_bag_window()
 		local window_x, window_y = ImGui.GetWindowPos()
@@ -612,7 +608,6 @@ local function init()
 	scriptPath = tmp:gsub("init.lua", "")
 	imgPath    = string.format("%simages/bag.png", scriptPath)
 	minImg     = mq.CreateTexture(imgPath)
-
 	IsRunning  = true
 	loadSettings()
 	create_inventory()
