@@ -6,10 +6,9 @@ local IsRunning               = false
 local ThemeLoader             = require('lib.theme_loader')
 local themeFile               = string.format('%s/MyUI/ThemeZ.lua', mq.configDir)
 local Theme                   = require('defaults.themes')
-local imgPath                 = string.format("%s/%s/images/bag.png", mq.luaDir, scriptName)
-local minImg                  = mq.CreateTexture(imgPath)
 local utils                   = require('mq.Utils')
 local configFile              = string.format("%s/MyUI/BigBag/%s/%s.lua", mq.configDir, mq.TLO.EverQuest.Server(), mq.TLO.Me.Name())
+local scriptPath              = ''
 
 -- Constants
 local ICON_WIDTH              = 40
@@ -25,9 +24,14 @@ local UsedSlots               = 0
 -- EQ Texture Animation references
 local animItems               = mq.FindTextureAnimation("A_DragItem")
 local animBox                 = mq.FindTextureAnimation("A_RecessedBox")
+local imgPath
+local minImg
+
+-- Bag Toggles
 local toggleKey               = ''
 local toggleModKey            = ''
 local toggleMouse             = 'Middle'
+
 -- Bag Contents
 local items                   = {}
 local clickies                = {}
@@ -603,7 +607,13 @@ local function CommandHandler(...)
 end
 
 local function init()
-	IsRunning = true
+	mq.delay(1000, function() return mq.TLO.Lua.Script(scriptName:lower()).Path() ~= nil end)
+	local tmp  = mq.TLO.Lua.Script(scriptName:lower()).Path()
+	scriptPath = tmp:gsub("init.lua", "")
+	imgPath    = string.format("%simages/bag.png", scriptPath)
+	minImg     = mq.CreateTexture(imgPath)
+
+	IsRunning  = true
 	loadSettings()
 	create_inventory()
 	mq.bind("/bigbag", CommandHandler)
@@ -627,4 +637,5 @@ local function MainLoop()
 end
 
 init()
+
 MainLoop()
