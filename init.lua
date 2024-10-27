@@ -45,6 +45,7 @@ local themeName               = "Default"
 local settings                = {}
 local defaults                = {
 	MIN_SLOTS_WARN = 3,
+	INVENTORY_DELAY_SECONDS = 2,
 	show_item_background = true,
 	sort_order = { name = false, stack = false, },
 	themeName = "Default",
@@ -64,6 +65,7 @@ local function loadSettings()
 		Theme = dofile(themeFile)
 	end
 
+	INVENTORY_DELAY_SECONDS = settings.INVENTORY_DELAY_SECONDS ~= nil and settings.INVENTORY_DELAY_SECONDS or defaults.INVENTORY_DELAY_SECONDS
 	toggleKey = settings.toggleKey ~= nil and settings.toggleKey or defaults.toggleKey
 	toggleModKey = settings.toggleModKey ~= nil and settings.toggleModKey or defaults.toggleModKey
 	toggleMouse = settings.toggleMouse ~= nil and settings.toggleMouse or defaults.toggleMouse
@@ -100,7 +102,7 @@ end
 
 -- The beast - this routine is what builds our inventory.
 local function create_inventory()
-	if (((os.difftime(os.time(), start_time)) > INVENTORY_DELAY_SECONDS or table.getn(items) == 0) and mq.TLO.Me.FreeInventory() ~= FreeSlots) or clicked then
+	if ((os.difftime(os.time(), start_time)) > INVENTORY_DELAY_SECONDS) or mq.TLO.Me.FreeInventory() ~= FreeSlots or clicked then
 		start_time = os.time()
 		items = {}
 		clickies = {}
@@ -205,6 +207,15 @@ local function display_bag_options()
 		end
 		ImGui.SameLine()
 		help_marker("Minimum number of slots before the warning color is displayed.")
+
+		ImGui.SetNextItemWidth(100)
+		INVENTORY_DELAY_SECONDS = ImGui.InputInt("Inventory Refresh Time (s)", INVENTORY_DELAY_SECONDS, 1, 10)
+		if INVENTORY_DELAY_SECONDS ~= settings.INVENTORY_DELAY_SECONDS then
+			settings.INVENTORY_DELAY_SECONDS = INVENTORY_DELAY_SECONDS
+			mq.pickle(configFile, settings)
+		end
+		ImGui.SameLine()
+		help_marker("Time in seconds between inventory refreshes, if # of free slots hasn't changed.")
 	end
 
 	if ImGui.CollapsingHeader('Toggle Settings') then
