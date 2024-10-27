@@ -501,23 +501,26 @@ local function apply_style()
 end
 
 local function renderBtn()
-	local colorCount, styleCount = ThemeLoader.StartTheme(themeName, Theme)
+	local colorCountBtn, styleCountBtn = ThemeLoader.StartTheme(themeName, Theme)
 
-	if FreeSlots > MIN_SLOTS_WARN then
-		ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetStyleColor(ImGuiCol.Button))
-		ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ImGui.GetStyleColor(ImGuiCol.ButtonHovered))
-	else
-		ImGui.PushStyleColor(ImGuiCol.Button, 1.000, 0.354, 0.0, 0.2)
-		ImGui.PushStyleColor(ImGuiCol.ButtonHovered, 1.000, 0.204, 0.0, 0.4)
-	end
+
 	local openBtn, showBtn = ImGui.Begin(string.format("Big Bag##Mini"), true, bit32.bor(ImGuiWindowFlags.AlwaysAutoResize, ImGuiWindowFlags.NoTitleBar, ImGuiWindowFlags.NoCollapse))
 	if not openBtn then
 		showBtn = false
 	end
 	if showBtn then
+		if FreeSlots > MIN_SLOTS_WARN then
+			ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetStyleColor(ImGuiCol.Button))
+			ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ImGui.GetStyleColor(ImGuiCol.ButtonHovered))
+		else
+			ImGui.PushStyleColor(ImGuiCol.Button, 1.000, 0.354, 0.0, 0.2)
+			ImGui.PushStyleColor(ImGuiCol.ButtonHovered, 1.000, 0.204, 0.0, 0.4)
+		end
 		if ImGui.ImageButton("BigBag##btn", minImg:GetTextureID(), ImVec2(30, 30)) then
 			shouldDrawGUI = not shouldDrawGUI
 		end
+		ImGui.PopStyleColor(2)
+
 		if ImGui.IsItemHovered() then
 			ImGui.BeginTooltip()
 			ImGui.TextUnformatted("Click to Toggle Big Bag")
@@ -543,8 +546,7 @@ local function renderBtn()
 			end
 		end
 	end
-
-	ThemeLoader.EndTheme(colorCount, styleCount)
+	ThemeLoader.EndTheme(colorCountBtn, styleCountBtn)
 	ImGui.End()
 end
 --- ImGui Program Loop
