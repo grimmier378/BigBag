@@ -492,14 +492,6 @@ local function display_details()
 	end
 end
 
-local function apply_style()
-	ImGui.PushStyleColor(ImGuiCol.Button, .62, .53, .79, .40)
-	ImGui.PushStyleColor(ImGuiCol.ButtonHovered, 1, 1, 1, .87)
-	ImGui.PushStyleColor(ImGuiCol.ResizeGrip, .62, .53, .79, .40)
-	ImGui.PushStyleColor(ImGuiCol.ResizeGripHovered, .62, .53, .79, 1)
-	ImGui.PushStyleColor(ImGuiCol.ResizeGripActive, .62, .53, .79, 1)
-end
-
 local function renderBtn()
 	local colorCountBtn, styleCountBtn = ThemeLoader.StartTheme(themeName, Theme)
 
@@ -550,47 +542,52 @@ local function renderBtn()
 	ImGui.End()
 end
 --- ImGui Program Loop
+---
+local function RenderTabs()
+	local colorCount, styleCount = ThemeLoader.StartTheme(themeName, Theme)
+
+	local open, show = ImGui.Begin(string.format("Big Bag"), true, ImGuiWindowFlags.NoScrollbar)
+	if not open then
+		show = false
+		shouldDrawGUI = false
+	end
+	if show then
+		display_bag_utilities()
+		ImGui.SetWindowFontScale(1.25)
+		ImGui.Text(string.format("Used/Free Slots "))
+		ImGui.SameLine()
+		ImGui.TextColored(FreeSlots > MIN_SLOTS_WARN and ImVec4(0.354, 1.000, 0.000, 0.500) or ImVec4(1.000, 0.354, 0.0, 0.5), "(%s/%s)", UsedSlots, FreeSlots)
+
+		if ImGui.BeginTabBar("BagTabs") then
+			if ImGui.BeginTabItem("Items") then
+				display_bag_content()
+				ImGui.EndTabItem()
+			end
+			if ImGui.BeginTabItem('Clickies') then
+				display_clickies()
+				ImGui.EndTabItem()
+			end
+			if ImGui.BeginTabItem('Details') then
+				display_details()
+				ImGui.EndTabItem()
+			end
+			if ImGui.BeginTabItem('Settings') then
+				display_bag_options()
+				ImGui.EndTabItem()
+			end
+			ImGui.EndTabBar()
+		end
+
+		display_item_on_cursor()
+	end
+	ThemeLoader.EndTheme(colorCount, styleCount)
+	ImGui.End()
+end
 local function RenderGUI()
 	if not IsRunning then return end
+
 	if shouldDrawGUI then
-		local colorCount, styleCount = ThemeLoader.StartTheme(themeName, Theme)
-
-		local open, show = ImGui.Begin(string.format("Big Bag"), true, ImGuiWindowFlags.NoScrollbar)
-		if not open then
-			show = false
-			shouldDrawGUI = false
-		end
-		if show then
-			display_bag_utilities()
-			ImGui.SetWindowFontScale(1.25)
-			ImGui.Text(string.format("Used/Free Slots "))
-			ImGui.SameLine()
-			ImGui.TextColored(FreeSlots > MIN_SLOTS_WARN and ImVec4(0.354, 1.000, 0.000, 0.500) or ImVec4(1.000, 0.354, 0.0, 0.5), "(%s/%s)", UsedSlots, FreeSlots)
-
-			if ImGui.BeginTabBar("BagTabs") then
-				if ImGui.BeginTabItem("Items") then
-					display_bag_content()
-					ImGui.EndTabItem()
-				end
-				if ImGui.BeginTabItem('Clickies') then
-					display_clickies()
-					ImGui.EndTabItem()
-				end
-				if ImGui.BeginTabItem('Details') then
-					display_details()
-					ImGui.EndTabItem()
-				end
-				if ImGui.BeginTabItem('Settings') then
-					display_bag_options()
-					ImGui.EndTabItem()
-				end
-				ImGui.EndTabBar()
-			end
-
-			display_item_on_cursor()
-		end
-		ThemeLoader.EndTheme(colorCount, styleCount)
-		ImGui.End()
+		RenderTabs()
 	end
 
 	renderBtn()
