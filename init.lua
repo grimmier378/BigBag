@@ -166,6 +166,7 @@ end
 
 -- Display the collapasable menu area above the items
 local function display_bag_options()
+	ImGui.SetWindowFontScale(1.0)
 	if ImGui.CollapsingHeader("Bag Options") then
 		local changed = false
 		sort_order.name, changed = ImGui.Checkbox("Name", sort_order.name)
@@ -547,9 +548,7 @@ local function RenderGUI()
 		end
 		if show then
 			display_bag_utilities()
-			display_bag_options()
 			ImGui.SetWindowFontScale(1.25)
-			ImGui.SetCursorPosY(ImGui.GetCursorPosY() - 20)
 			ImGui.Text(string.format("Used/Free Slots "))
 			ImGui.SameLine()
 			ImGui.TextColored(FreeSlots > MIN_SLOTS_WARN and ImVec4(0.354, 1.000, 0.000, 0.500) or ImVec4(1.000, 0.354, 0.0, 0.5), "(%s/%s)", UsedSlots, FreeSlots)
@@ -565,6 +564,10 @@ local function RenderGUI()
 				end
 				if ImGui.BeginTabItem('Details') then
 					display_details()
+					ImGui.EndTabItem()
+				end
+				if ImGui.BeginTabItem('Settings') then
+					display_bag_options()
 					ImGui.EndTabItem()
 				end
 				ImGui.EndTabBar()
