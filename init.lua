@@ -261,53 +261,27 @@ local function display_bag_options()
 		ImGui.SameLine()
 		help_marker("Key to toggle the GUI (A-Z | 0-9 | F1-F12)")
 
-		ImGui.Text("Toggle Mod Key")
-		ImGui.SameLine()
-		ImGui.SetNextItemWidth(100)
-
-		local isSelected = false
-		if settings.toggleModKey2 == '' then
-			ImGui.Text("None")
-		else
-			if ImGui.BeginCombo("##ToggleModKey", settings.toggleModKey) then
-				for k, v in pairs(modKeys) do
-					isSelected = v == settings.toggleModKey
-					if ImGui.Selectable(v, isSelected) then
-						settings.toggleModKey = v
-						if v == 'None' then
-							settings.toggleModKey2 = 'None'
-							settings.toggleModKey3 = 'None'
-							toggleModKey2 = settings.toggleModKey2
-							toggleModKey3 = settings.toggleModKey3
-						end
-						toggleModKey = settings.toggleModKey
-						mq.pickle(configFile, settings)
-					end
-				end
-				ImGui.EndCombo()
-			end
-		end
-		ImGui.SameLine()
-		help_marker("Modifier Key to toggle the GUI (Ctrl | Alt | Shift)")
-		if settings.toggleModKey ~= 'None' then
-			ImGui.Text("Toggle Mod Key2")
+		if toggleKey ~= '' then
+			ImGui.Text("Toggle Mod Key")
 			ImGui.SameLine()
 			ImGui.SetNextItemWidth(100)
 
-			local isSelectedMod2 = false
+			local isSelected = false
 			if settings.toggleModKey2 == '' then
 				ImGui.Text("None")
 			else
-				if ImGui.BeginCombo("##ToggleModKey2", settings.toggleModKey2) then
+				if ImGui.BeginCombo("##ToggleModKey", settings.toggleModKey) then
 					for k, v in pairs(modKeys) do
-						isSelectedMod2 = v == settings.toggleModKey2
-						if ImGui.Selectable(v, isSelectedMod2) then
-							settings.toggleModKey2 = v
+						isSelected = v == settings.toggleModKey
+						if ImGui.Selectable(v, isSelected) then
+							settings.toggleModKey = v
 							if v == 'None' then
+								settings.toggleModKey2 = 'None'
 								settings.toggleModKey3 = 'None'
+								toggleModKey2 = settings.toggleModKey2
 								toggleModKey3 = settings.toggleModKey3
 							end
-							toggleModKey2 = settings.toggleModKey2
+							toggleModKey = settings.toggleModKey
 							mq.pickle(configFile, settings)
 						end
 					end
@@ -315,22 +289,26 @@ local function display_bag_options()
 				end
 			end
 			ImGui.SameLine()
-			help_marker("Modifier Key2 to toggle the GUI (Ctrl | Alt | Shift)")
-
-			if settings.toggleModKey2 ~= 'None' then
-				ImGui.Text("Toggle Mod Key3")
+			help_marker("Modifier Key to toggle the GUI (Ctrl | Alt | Shift)")
+			if settings.toggleModKey ~= 'None' then
+				ImGui.Text("Toggle Mod Key2")
 				ImGui.SameLine()
 				ImGui.SetNextItemWidth(100)
-				local isSelectedMod3 = false
-				if settings.toggleModKey3 == '' then
+
+				local isSelectedMod2 = false
+				if settings.toggleModKey2 == '' then
 					ImGui.Text("None")
 				else
-					if ImGui.BeginCombo("##ToggleModKey3", settings.toggleModKey3) then
+					if ImGui.BeginCombo("##ToggleModKey2", settings.toggleModKey2) then
 						for k, v in pairs(modKeys) do
-							isSelectedMod3 = v == settings.toggleModKey3
-							if ImGui.Selectable(v, isSelectedMod3) then
-								settings.toggleModKey3 = v
-								toggleModKey3 = settings.toggleModKey3
+							isSelectedMod2 = v == settings.toggleModKey2
+							if ImGui.Selectable(v, isSelectedMod2) then
+								settings.toggleModKey2 = v
+								if v == 'None' then
+									settings.toggleModKey3 = 'None'
+									toggleModKey3 = settings.toggleModKey3
+								end
+								toggleModKey2 = settings.toggleModKey2
 								mq.pickle(configFile, settings)
 							end
 						end
@@ -338,7 +316,31 @@ local function display_bag_options()
 					end
 				end
 				ImGui.SameLine()
-				help_marker("Modifier Key3 to toggle the GUI (Ctrl | Alt | Shift)")
+				help_marker("Modifier Key2 to toggle the GUI (Ctrl | Alt | Shift)")
+
+				if settings.toggleModKey2 ~= 'None' then
+					ImGui.Text("Toggle Mod Key3")
+					ImGui.SameLine()
+					ImGui.SetNextItemWidth(100)
+					local isSelectedMod3 = false
+					if settings.toggleModKey3 == '' then
+						ImGui.Text("None")
+					else
+						if ImGui.BeginCombo("##ToggleModKey3", settings.toggleModKey3) then
+							for k, v in pairs(modKeys) do
+								isSelectedMod3 = v == settings.toggleModKey3
+								if ImGui.Selectable(v, isSelectedMod3) then
+									settings.toggleModKey3 = v
+									toggleModKey3 = settings.toggleModKey3
+									mq.pickle(configFile, settings)
+								end
+							end
+							ImGui.EndCombo()
+						end
+					end
+					ImGui.SameLine()
+					help_marker("Modifier Key3 to toggle the GUI (Ctrl | Alt | Shift)")
+				end
 			end
 		end
 		ImGui.Text("Toggle Mouse Button")
