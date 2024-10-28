@@ -66,8 +66,6 @@ local modKeys                                    = {
 	"Shift",
 }
 local mouseKeys                                  = {
-	"Left",
-	"Right",
 	"Middle",
 	"None",
 }
@@ -348,10 +346,21 @@ local function display_bag_options()
 		ImGui.Text("Toggle Mouse Button")
 		ImGui.SameLine()
 		ImGui.SetNextItemWidth(100)
-		toggleMouse = ImGui.InputText("##ToggleMouse", toggleMouse)
-		if toggleMouse ~= settings.toggleMouse then
-			settings.toggleMouse = toggleMouse
-			mq.pickle(configFile, settings)
+		local isSelectedMouse = false
+		if settings.toggleMouse == '' then
+			ImGui.Text("None")
+		else
+			if ImGui.BeginCombo("##ToggleMouseButton", settings.toggleMouse) then
+				for k, v in pairs(mouseKeys) do
+					isSelectedMouse = v == settings.toggleMouse
+					if ImGui.Selectable(v, isSelectedMouse) then
+						settings.toggleMouse = v
+						toggleMouse = settings.toggleMouse
+						mq.pickle(configFile, settings)
+					end
+				end
+				ImGui.EndCombo()
+			end
 		end
 		ImGui.SameLine()
 		help_marker("Mouse Button to toggle the GUI (Left | Right | Middle)")
