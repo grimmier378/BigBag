@@ -643,24 +643,20 @@ end
 
 local function renderBtn()
 	local colorCountBtn, styleCountBtn = ThemeLoader.StartTheme(themeName, Theme)
-
-
 	local openBtn, showBtn = ImGui.Begin(string.format("Big Bag##Mini"), true, bit32.bor(ImGuiWindowFlags.AlwaysAutoResize, ImGuiWindowFlags.NoTitleBar, ImGuiWindowFlags.NoCollapse))
 	if not openBtn then
 		showBtn = false
 	end
 	if showBtn then
 		if FreeSlots > MIN_SLOTS_WARN then
-			ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetStyleColor(ImGuiCol.Button))
-			ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ImGui.GetStyleColor(ImGuiCol.ButtonHovered))
+			if ImGui.ImageButton("BigBag##btn", minImg:GetTextureID(), ImVec2(30, 30)) then
+				shouldDrawGUI = not shouldDrawGUI
+			end
 		else
-			ImGui.PushStyleColor(ImGuiCol.Button, 1.000, 0.354, 0.0, 0.2)
-			ImGui.PushStyleColor(ImGuiCol.ButtonHovered, 1.000, 0.204, 0.0, 0.4)
+			if ImGui.ImageButton("BigBag##btn", minImg:GetTextureID(), ImVec2(30, 30), ImVec2(0, 0), ImVec2(1, 1), ImVec4(1.000, 0.354, 0.0, 0.9), ImVec4(1.000, 0.354, 0.0, 0.9)) then
+				shouldDrawGUI = not shouldDrawGUI
+			end
 		end
-		if ImGui.ImageButton("BigBag##btn", minImg:GetTextureID(), ImVec2(30, 30)) then
-			shouldDrawGUI = not shouldDrawGUI
-		end
-		ImGui.PopStyleColor(2)
 
 		if ImGui.IsItemHovered() then
 			BigButtonTooltip()
