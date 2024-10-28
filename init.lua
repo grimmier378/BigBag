@@ -84,6 +84,7 @@ local function loadSettings()
 	if settings.toggleModKey == '' then settings.toggleModKey = 'None' end
 	if settings.toggleModKey2 == '' then settings.toggleModKey2 = 'None' end
 	if settings.toggleModKey3 == '' then settings.toggleModKey3 = 'None' end
+	if settings.toggleMouse == '' then settings.toggleMouse = 'None' end
 	INVENTORY_DELAY_SECONDS = settings.INVENTORY_DELAY_SECONDS ~= nil and settings.INVENTORY_DELAY_SECONDS or defaults.INVENTORY_DELAY_SECONDS
 	toggleKey = settings.toggleKey ~= nil and settings.toggleKey or defaults.toggleKey
 	toggleModKey = settings.toggleModKey ~= nil and settings.toggleModKey or defaults.toggleModKey
@@ -665,7 +666,7 @@ local function renderBtn()
 			BigButtonTooltip()
 		end
 
-		if toggleMouse ~= '' then
+		if toggleMouse ~= 'None' then
 			if ImGui.IsMouseClicked(ImGuiMouseButton[toggleMouse]) then
 				shouldDrawGUI = not shouldDrawGUI
 			end
