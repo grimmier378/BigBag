@@ -601,6 +601,34 @@ local function display_details()
 	end
 end
 
+local function BigButtonTooltip()
+	local toggleModes = ''
+	if toggleModKey ~= 'None' and toggleModKey2 == 'None' and toggleModKey3 == 'None' and toggleKey ~= '' then
+		toggleModes = string.format("%s + %s", toggleModKey, toggleKey)
+	elseif toggleModKey ~= 'None' and toggleModKey2 ~= 'None' and toggleModKey3 == 'None' and toggleKey ~= '' then
+		toggleModes = string.format("%s + %s + %s", toggleModKey, toggleModKey2, toggleKey)
+	elseif toggleModKey ~= 'None' and toggleModKey2 ~= 'None' and toggleModKey3 ~= 'None' and toggleKey ~= '' then
+		toggleModes = string.format("%s + %s + %s + %s", toggleModKey, toggleModKey2, toggleModKey3, toggleKey)
+	elseif toggleModKey == 'None' and toggleKey ~= '' then
+		toggleModes = string.format("%s", toggleKey)
+	end
+
+	ImGui.BeginTooltip()
+	ImGui.Text("Click to Toggle Big Bag")
+	ImGui.TextColored(ImVec4(1, 1, 0, 1), "%s", toggleModes)
+	ImGui.SameLine()
+	ImGui.Text("to Toggle GUI")
+	if toggleMouse ~= 'None' then
+		ImGui.TextColored(ImVec4(1.000, 0.671, 0.257, 0.500), "%s  Mouse Button", toggleMouse)
+		ImGui.SameLine()
+		ImGui.Text(" to Toggle GUI")
+	end
+	ImGui.Text(string.format("Used/Free Slots "))
+	ImGui.SameLine()
+	ImGui.TextColored(FreeSlots > MIN_SLOTS_WARN and ImVec4(0.354, 1.000, 0.000, 0.500) or ImVec4(1.000, 0.354, 0.0, 0.5), "(%s/%s)", UsedSlots, FreeSlots)
+	ImGui.EndTooltip()
+end
+
 local function renderBtn()
 	local colorCountBtn, styleCountBtn = ThemeLoader.StartTheme(themeName, Theme)
 
@@ -623,13 +651,7 @@ local function renderBtn()
 		ImGui.PopStyleColor(2)
 
 		if ImGui.IsItemHovered() then
-			ImGui.BeginTooltip()
-			ImGui.TextUnformatted("Click to Toggle Big Bag")
-			ImGui.TextUnformatted("Middle Mouse Click to Toggle GUI")
-			ImGui.Text(string.format("Used/Free Slots "))
-			ImGui.SameLine()
-			ImGui.TextColored(FreeSlots > MIN_SLOTS_WARN and ImVec4(0.354, 1.000, 0.000, 0.500) or ImVec4(1.000, 0.354, 0.0, 0.5), "(%s/%s)", UsedSlots, FreeSlots)
-			ImGui.EndTooltip()
+			BigButtonTooltip()
 		end
 
 		if toggleMouse ~= '' then
