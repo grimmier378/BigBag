@@ -207,6 +207,7 @@ local function display_bag_options()
 			needSort = true
 			settings.sort_order.name = sort_order.name
 			mq.pickle(configFile, settings)
+			clicked = true
 		end
 		ImGui.SameLine()
 		help_marker("Order items from your inventory sorted by the name of the item.")
@@ -217,6 +218,7 @@ local function display_bag_options()
 			needSort = true
 			settings.sort_order.stack = sort_order.stack
 			mq.pickle(configFile, settings)
+			clicked = true
 		end
 		ImGui.SameLine()
 		help_marker("Order items with the largest stacks appearing first.")
