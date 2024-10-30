@@ -1,32 +1,31 @@
-local mq                                         = require("mq")
-local ImGui                                      = require("ImGui")
-local shouldDrawGUI                              = true
-local scriptName                                 = "BigBag"
-local IsRunning                                  = false
-local ThemeLoader                                = require('lib.theme_loader')
-local themeFile                                  = string.format('%s/MyUI/ThemeZ.lua', mq.configDir)
-local Theme                                      = require('defaults.themes')
-local utils                                      = require('mq.Utils')
-local configFile                                 = string.format("%s/MyUI/BigBag/%s/%s.lua", mq.configDir, mq.TLO.EverQuest.Server(), mq.TLO.Me.Name())
-local scriptPath                                 = ''
+local mq                      = require("mq")
+local ImGui                   = require("ImGui")
+local shouldDrawGUI           = true
+local scriptName              = "BigBag"
+local IsRunning               = false
+local ThemeLoader             = require('lib.theme_loader')
+local themeFile               = string.format('%s/MyUI/ThemeZ.lua', mq.configDir)
+local Theme                   = require('defaults.themes')
+local utils                   = require('mq.Utils')
+local configFile              = string.format("%s/MyUI/BigBag/%s/%s.lua", mq.configDir, mq.TLO.EverQuest.Server(), mq.TLO.Me.Name())
+local scriptPath              = ''
 
 -- Constants
-local ICON_WIDTH                                 = 40
-local ICON_HEIGHT                                = 40
-local COUNT_X_OFFSET                             = 39
-local COUNT_Y_OFFSET                             = 23
-local EQ_ICON_OFFSET                             = 500
-local BAG_ITEM_SIZE                              = 40
-local MIN_SLOTS_WARN                             = 3
-local INVENTORY_DELAY_SECONDS                    = 2
-local FreeSlots                                  = 0
-local UsedSlots                                  = 0
-local configFile                                 = string.format("%s/MyUI/BigBag/%s/%s.lua", mq.configDir, mq.TLO.EverQuest.Server(), mq.TLO.Me.Name())
+local ICON_WIDTH              = 40
+local ICON_HEIGHT             = 40
+local COUNT_X_OFFSET          = 39
+local COUNT_Y_OFFSET          = 23
+local EQ_ICON_OFFSET          = 500
+local BAG_ITEM_SIZE           = 40
+local MIN_SLOTS_WARN          = 3
+local INVENTORY_DELAY_SECONDS = 2
+local FreeSlots               = 0
+local UsedSlots               = 0
 -- EQ Texture Animation references
-local animItems                                  = mq.FindTextureAnimation("A_DragItem")
-local animBox                                    = mq.FindTextureAnimation("A_RecessedBox")
-local imgPath
-local minImg
+local animItems               = mq.FindTextureAnimation("A_DragItem")
+local animBox                 = mq.FindTextureAnimation("A_RecessedBox")
+local animMini                = mq.FindTextureAnimation("A_DragItem")
+
 
 -- Bag Toggles
 local toggleKey                                  = ''
@@ -46,7 +45,6 @@ local show_item_background                       = true
 local themeName                                  = "Default"
 local start_time                                 = os.time()
 local filter_text                                = ""
-local utils                                      = require('mq.Utils')
 local settings                                   = {}
 local defaults                                   = {
 	MIN_SLOTS_WARN = 3,
@@ -658,25 +656,19 @@ local function renderBtn()
 		showBtn = false
 	end
 	if showBtn then
-		-- if FreeSlots > MIN_SLOTS_WARN then
-		-- 	ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetStyleColor(ImGuiCol.Button))
-		-- 	ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ImGui.GetStyleColor(ImGuiCol.ButtonHovered))
-		-- else
-		-- 	ImGui.PushStyleColor(ImGuiCol.Button, 1.000, 0.354, 0.0, 0.2)
-		-- 	ImGui.PushStyleColor(ImGuiCol.ButtonHovered, 1.000, 0.204, 0.0, 0.4)
-		-- end
 		if FreeSlots > MIN_SLOTS_WARN then
-			if ImGui.ImageButton("BigBag##btn", minImg:GetTextureID(), ImVec2(30, 30)) then
-				shouldDrawGUI = not shouldDrawGUI
-			end
+			animMini:SetTextureCell(3635 - EQ_ICON_OFFSET)
+			ImGui.DrawTextureAnimation(animMini, 34, 34)
 		else
-			if ImGui.ImageButton("BigBag##btn", minImg:GetTextureID(), ImVec2(30, 30), ImVec2(0, 0), ImVec2(1, 1), ImVec4(1.000, 0.354, 0.0, 0.9), ImVec4(1.000, 0.354, 0.0, 0.9)) then
-				shouldDrawGUI = not shouldDrawGUI
-			end
+			animMini:SetTextureCell(3632 - EQ_ICON_OFFSET)
+			ImGui.DrawTextureAnimation(animMini, 34, 34)
 		end
 
 		if ImGui.IsItemHovered() then
 			BigButtonTooltip()
+			if ImGui.IsMouseReleased(ImGuiMouseButton.Left) then
+				shouldDrawGUI = not shouldDrawGUI
+			end
 		end
 
 		if toggleMouse ~= 'None' then
@@ -793,12 +785,7 @@ local function CommandHandler(...)
 end
 
 local function init()
-	mq.delay(1000, function() return mq.TLO.Lua.Script(scriptName:lower()).Path() ~= nil end)
-	local tmp  = mq.TLO.Lua.Script(scriptName:lower()).Path()
-	scriptPath = tmp:gsub("init.lua", "")
-	imgPath    = string.format("%simages/bag.png", scriptPath)
-	minImg     = mq.CreateTexture(imgPath)
-	IsRunning  = true
+	IsRunning = true
 	loadSettings()
 	create_inventory()
 	mq.bind("/bigbag", CommandHandler)
