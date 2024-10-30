@@ -35,6 +35,8 @@ local toggleMouse                                = 'Middle'
 -- Bag Contents
 local items                                      = {}
 local clickies                                   = {}
+local augments                                   = {}
+
 local needSort                                   = true
 
 -- Bag Options
@@ -135,6 +137,8 @@ local function create_inventory()
 		start_time = os.time()
 		items = {}
 		clickies = {}
+		augments = {}
+
 		local tmpUsedSlots = 0
 		for i = 1, 22, 1 do
 			local slot = mq.TLO.Me.Inventory(i)
@@ -154,6 +158,9 @@ local function create_inventory()
 						if slot.Item(j).Clicky() then
 							table.insert(clickies, slot.Item(j))
 						end
+						if slot.Item(j).AugType() > 0 then
+							table.insert(augments, slot.Item(j))
+						end
 					end
 				end
 			elseif slot.ID() ~= nil then
@@ -161,6 +168,9 @@ local function create_inventory()
 				tmpUsedSlots = tmpUsedSlots + 1
 				if slot.Clicky() then
 					table.insert(clickies, slot)
+				end
+				if slot.AugType() > 0 then
+					table.insert(augments, slot)
 				end
 			end
 		end
@@ -568,9 +578,31 @@ local function display_clickies()
 	ImGui.PopStyleVar()
 end
 
+local function display_augments()
+	ImGui.SetWindowFontScale(1.0)
+
+	ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, ImVec2(0, 0))
+	local bag_window_width = ImGui.GetWindowWidth()
+	local bag_cols = math.floor(bag_window_width / BAG_ITEM_SIZE)
+	local temp_bag_cols = 1
+
+	for index, _ in ipairs(augments) do
+		if string.match(string.lower(augments[index].Name()), string.lower(filter_text)) then
+			draw_item_icon(augments[index], ICON_WIDTH, ICON_HEIGHT)
+			if bag_cols > temp_bag_cols then
+				temp_bag_cols = temp_bag_cols + 1
+				ImGui.SameLine()
+			else
+				temp_bag_cols = 1
+			end
+		end
+	end
+	ImGui.PopStyleVar()
+end
+
 local function display_details()
 	ImGui.SetWindowFontScale(1.0)
-	if ImGui.BeginTable("Details", 7, bit32.bor(ImGuiTableFlags.Borders, ImGuiTableFlags.ScrollY, ImGuiTableFlags.Resizable, ImGuiTableFlags.Hideable, ImGuiTableFlags.Reorderable)) then
+	if ImGui.BeginTable("Details", 8, bit32.bor(ImGuiTableFlags.Borders, ImGuiTableFlags.ScrollY, ImGuiTableFlags.Resizable, ImGuiTableFlags.Hideable, ImGuiTableFlags.Reorderable)) then
 		ImGui.TableSetupColumn('Icon', ImGuiTableColumnFlags.WidthStretch)
 		ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthFixed, 100)
 		ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch)
@@ -578,6 +610,7 @@ local function display_details()
 		ImGui.TableSetupColumn('Worn EFX', ImGuiTableColumnFlags.WidthStretch)
 		ImGui.TableSetupColumn('Clicky', ImGuiTableColumnFlags.WidthStretch)
 		ImGui.TableSetupColumn('Charges', ImGuiTableColumnFlags.WidthStretch)
+		ImGui.TableSetupColumn('Augment', ImGuiTableColumnFlags.WidthStretch)
 		ImGui.TableSetupScrollFreeze(0, 1)
 		ImGui.TableHeadersRow()
 		for index, _ in ipairs(items) do
@@ -615,6 +648,12 @@ local function display_details()
 				ImGui.TextColored(ImVec4(0, 1, 1, 1), clicky)
 				ImGui.TableNextColumn()
 				ImGui.Text("%s", lbl)
+				ImGui.TableNextColumn()
+				if item.AugType() > 0 then
+					ImGui.TextColored(ImVec4(0, 1, 0, 1), 'Yes')
+				else
+					ImGui.Text('No')
+				end
 			end
 		end
 		ImGui.EndTable()
@@ -737,6 +776,10 @@ local function RenderTabs()
 				end
 				if ImGui.BeginTabItem('Clickies') then
 					display_clickies()
+					ImGui.EndTabItem()
+				end
+				if ImGui.BeginTabItem('Augments') then
+					display_augments()
 					ImGui.EndTabItem()
 				end
 				if ImGui.BeginTabItem('Details') then
