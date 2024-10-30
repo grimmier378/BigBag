@@ -21,6 +21,7 @@ local MIN_SLOTS_WARN                             = 3
 local INVENTORY_DELAY_SECONDS                    = 2
 local FreeSlots                                  = 0
 local UsedSlots                                  = 0
+local configFile                                 = string.format("%s/MyUI/BigBag/%s/%s.lua", mq.configDir, mq.TLO.EverQuest.Server(), mq.TLO.Me.Name())
 -- EQ Texture Animation references
 local animItems                                  = mq.FindTextureAnimation("A_DragItem")
 local animBox                                    = mq.FindTextureAnimation("A_RecessedBox")
@@ -42,10 +43,10 @@ local sort_order                                 = { name = false, stack = false
 local clicked                                    = false
 -- GUI Activities
 local show_item_background                       = true
-
+local themeName                                  = "Default"
 local start_time                                 = os.time()
 local filter_text                                = ""
-local themeName                                  = "Default"
+local utils                                      = require('mq.Utils')
 local settings                                   = {}
 local defaults                                   = {
 	MIN_SLOTS_WARN = 3,
@@ -424,14 +425,14 @@ local function draw_item_icon(item, iconWidth, iconHeight)
 		ImGui.SetCursorPos((cursor_x + offsetX) - TextSize, cursor_y + offsetY)
 		ImGui.DrawTextureAnimation(animBox, TextSize, 4)
 		ImGui.SetCursorPos((cursor_x + offsetX) - TextSize, cursor_y + offsetY)
-		ImGui.TextColored(ImVec4(0, 1, 1, 1), tostring(item.Stack()))
+		ImGui.TextColored(ImVec4(0, 1, 1, 1), item.Stack())
 	end
 	local TextSize2 = ImGui.CalcTextSize(tostring(item.Charges()))
 	if item.Charges() >= 1 then
 		ImGui.SetCursorPos((cursor_x + offsetXCharges), cursor_y + offsetYCharges)
 		ImGui.DrawTextureAnimation(animBox, TextSize2, 4)
 		ImGui.SetCursorPos((cursor_x + offsetXCharges), cursor_y + offsetYCharges)
-		ImGui.TextColored(ImVec4(1, 1, 0, 1), tostring(item.Charges()))
+		ImGui.TextColored(ImVec4(1, 1, 0, 1), item.Charges())
 	end
 	ImGui.SetWindowFontScale(1.0)
 
@@ -585,6 +586,15 @@ local function display_details()
 			if string.match(string.lower(items[index].Name()), string.lower(filter_text)) then
 				local item = items[index]
 				local clicky = item.Clicky() or 'No'
+				local charges = item.Charges()
+				local lbl = 'Infinite'
+				if charges == -1 then
+					lbl = 'Infinite'
+				elseif charges == 0 then
+					lbl = 'None'
+				else
+					lbl = charges
+				end
 				ImGui.TableNextRow()
 				ImGui.TableNextColumn()
 				draw_item_icon(item, 20, 20)
@@ -606,7 +616,7 @@ local function display_details()
 				ImGui.TableNextColumn()
 				ImGui.TextColored(ImVec4(0, 1, 1, 1), clicky)
 				ImGui.TableNextColumn()
-				ImGui.Text("%s", clicky and (item.Charges() >= 0 and item.Charges() or 'Infinite') or 'No')
+				ImGui.Text("%s", lbl)
 			end
 		end
 		ImGui.EndTable()
@@ -648,6 +658,13 @@ local function renderBtn()
 		showBtn = false
 	end
 	if showBtn then
+		-- if FreeSlots > MIN_SLOTS_WARN then
+		-- 	ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetStyleColor(ImGuiCol.Button))
+		-- 	ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ImGui.GetStyleColor(ImGuiCol.ButtonHovered))
+		-- else
+		-- 	ImGui.PushStyleColor(ImGuiCol.Button, 1.000, 0.354, 0.0, 0.2)
+		-- 	ImGui.PushStyleColor(ImGuiCol.ButtonHovered, 1.000, 0.204, 0.0, 0.4)
+		-- end
 		if FreeSlots > MIN_SLOTS_WARN then
 			if ImGui.ImageButton("BigBag##btn", minImg:GetTextureID(), ImVec2(30, 30)) then
 				shouldDrawGUI = not shouldDrawGUI
@@ -704,25 +721,49 @@ local function RenderTabs()
 		ImGui.Text(string.format("Used/Free Slots "))
 		ImGui.SameLine()
 		ImGui.TextColored(FreeSlots > MIN_SLOTS_WARN and ImVec4(0.354, 1.000, 0.000, 0.500) or ImVec4(1.000, 0.354, 0.0, 0.5), "(%s/%s)", UsedSlots, FreeSlots)
+		ImGui.SeparatorText('Destroy Area"')
 
-		if ImGui.BeginTabBar("BagTabs") then
-			if ImGui.BeginTabItem("Items") then
-				display_bag_content()
-				ImGui.EndTabItem()
+		ImGui.PushStyleColor(ImGuiCol.ChildBg, ImVec4(0.2, 0, 0, 1))
+		if ImGui.BeginChild('DestroyArea', ImVec2(0.0, 40)) then
+			ImGui.TextDisabled("Drop Items Here to Destroy")
+		end
+		ImGui.EndChild()
+		ImGui.PopStyleColor()
+
+
+		if ImGui.IsItemHovered() and mq.TLO.Cursor() then
+			if ImGui.IsMouseClicked(ImGuiMouseButton.Left) then
+				mq.cmd("/destroy")
 			end
-			if ImGui.BeginTabItem('Clickies') then
-				display_clickies()
-				ImGui.EndTabItem()
+		end
+		ImGui.Separator()
+		if ImGui.BeginChild("BagTabs") then
+			if ImGui.BeginTabBar("##BagTabs") then
+				if ImGui.BeginTabItem("Items") then
+					display_bag_content()
+					ImGui.EndTabItem()
+				end
+				if ImGui.BeginTabItem('Clickies') then
+					display_clickies()
+					ImGui.EndTabItem()
+				end
+				if ImGui.BeginTabItem('Details') then
+					display_details()
+					ImGui.EndTabItem()
+				end
+				if ImGui.BeginTabItem('Settings') then
+					display_bag_options()
+					ImGui.EndTabItem()
+				end
+				ImGui.EndTabBar()
 			end
-			if ImGui.BeginTabItem('Details') then
-				display_details()
-				ImGui.EndTabItem()
+		end
+		ImGui.EndChild()
+		if ImGui.IsItemHovered() and mq.TLO.Cursor() then
+			-- Autoinventory any items on the cursor if you click in the bag UI
+			if ImGui.IsMouseClicked(ImGuiMouseButton.Left) then
+				mq.cmd("/autoinventory")
 			end
-			if ImGui.BeginTabItem('Settings') then
-				display_bag_options()
-				ImGui.EndTabItem()
-			end
-			ImGui.EndTabBar()
 		end
 
 		display_item_on_cursor()
@@ -739,6 +780,8 @@ local function RenderGUI()
 
 	renderBtn()
 end
+
+--- Main Script Loop
 
 local function CommandHandler(...)
 	local args = { ..., }
