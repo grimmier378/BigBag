@@ -1,41 +1,45 @@
-local mq                      = require("mq")
-local ImGui                   = require("ImGui")
-local shouldDrawGUI           = true
-local scriptName              = "BigBag"
-local IsRunning               = false
-local ThemeLoader             = require('lib.theme_loader')
-local themeFile               = string.format('%s/MyUI/ThemeZ.lua', mq.configDir)
-local Theme                   = require('defaults.themes')
-local utils                   = require('mq.Utils')
-local configFile              = string.format("%s/MyUI/BigBag/%s/%s.lua", mq.configDir, mq.TLO.EverQuest.Server(), mq.TLO.Me.Name())
-local scriptPath              = ''
+local mq                                         = require("mq")
+local ImGui                                      = require("ImGui")
+local shouldDrawGUI                              = true
+local scriptName                                 = "BigBag"
+local IsRunning                                  = false
+local ThemeLoader                                = require('lib.theme_loader')
+local themeFile                                  = string.format('%s/MyUI/ThemeZ.lua', mq.configDir)
+local Theme                                      = require('defaults.themes')
+local utils                                      = require('mq.Utils')
+local configFile                                 = string.format("%s/MyUI/BigBag/%s/%s.lua", mq.configDir, mq.TLO.EverQuest.Server(), mq.TLO.Me.Name())
+local scriptPath                                 = ''
 
 -- Constants
-local ICON_WIDTH              = 40
-local ICON_HEIGHT             = 40
-local COUNT_X_OFFSET          = 39
-local COUNT_Y_OFFSET          = 23
-local EQ_ICON_OFFSET          = 500
-local BAG_ITEM_SIZE           = 40
-local MIN_SLOTS_WARN          = 3
-local INVENTORY_DELAY_SECONDS = 2
-local FreeSlots               = 0
-local UsedSlots               = 0
+local ICON_WIDTH                                 = 40
+local ICON_HEIGHT                                = 40
+local COUNT_X_OFFSET                             = 39
+local COUNT_Y_OFFSET                             = 23
+local EQ_ICON_OFFSET                             = 500
+local BAG_ITEM_SIZE                              = 40
+local MIN_SLOTS_WARN                             = 3
+local INVENTORY_DELAY_SECONDS                    = 2
+local FreeSlots                                  = 0
+local UsedSlots                                  = 0
+local MySelf                                     = mq.TLO.Me
 -- EQ Texture Animation references
-local animItems               = mq.FindTextureAnimation("A_DragItem")
-local animBox                 = mq.FindTextureAnimation("A_RecessedBox")
-local animMini                = mq.FindTextureAnimation("A_DragItem")
-
+local animItems                                  = mq.FindTextureAnimation("A_DragItem")
+local animBox                                    = mq.FindTextureAnimation("A_RecessedBox")
+local animMini                                   = mq.FindTextureAnimation("A_DragItem")
 
 -- Bag Toggles
 local toggleKey                                  = ''
 local toggleModKey, toggleModKey2, toggleModKey3 = 'None', 'None', 'None'
 local toggleMouse                                = 'Middle'
+local do_process_coin                            = false
 
 -- Bag Contents
 local items                                      = {}
 local clickies                                   = {}
 local augments                                   = {}
+local coin_type                                  = 0
+local coin_qty                                   = ''
+local myCopper, mySilver, myGold, myPlat         = 0, 0, 0, 0
 
 local needSort                                   = true
 
@@ -44,6 +48,7 @@ local sort_order                                 = { name = false, stack = false
 local clicked                                    = false
 -- GUI Activities
 local show_item_background                       = true
+local show_qty_win                               = false
 local themeName                                  = "Default"
 local start_time                                 = os.time()
 local filter_text                                = ""
@@ -131,6 +136,126 @@ local function sort_inventory()
 	end
 end
 
+local function process_coin()
+	local coinSlot = string.format("InventoryWindow/IW_Money%s", coin_type)
+	mq.TLO.Window('InventoryWindow').DoOpen()
+	mq.delay(1500, function() return mq.TLO.Window('InventoryWindow').Open() end)
+	mq.TLO.Window(coinSlot).LeftMouseUp()
+	while mq.TLO.Window("QuantityWnd/QTYW_SliderInput").Text() ~= coin_qty do
+		mq.TLO.Window("QuantityWnd/QTYW_SliderInput").SetText(coin_qty)
+		mq.delay(200, function() return mq.TLO.Window("QuantityWnd/QTYW_SliderInput").Text() == coin_qty end)
+	end
+	while mq.TLO.Window("QuantityWnd").Open() do
+		mq.TLO.Window("QuantityWnd/QTYW_Accept_Button").LeftMouseUp()
+		mq.delay(200, function() return not mq.TLO.Window("QuantityWnd").Open() end)
+	end
+	mq.TLO.Window('InventoryWindow').DoClose()
+end
+
+local function draw_qty_win()
+	local label = ''
+	if show_qty_win then
+		local labelHint = "Available: "
+		if coin_type == 0 then
+			labelHint = labelHint .. myPlat
+			label = 'Plat'
+		elseif coin_type == 1 then
+			labelHint = labelHint .. myGold
+			label = 'Gold'
+		elseif coin_type == 2 then
+			labelHint = labelHint .. mySilver
+			label = 'Silver'
+		elseif coin_type == 3 then
+			labelHint = labelHint .. myCopper
+			label = 'Copper'
+		end
+		ImGui.SetNextWindowPos(ImGui.GetMousePosOnOpeningCurrentPopupVec(), ImGuiCond.Appearing)
+		local open, show = ImGui.Begin("Quantity##" .. coin_type, true, bit32.bor(ImGuiWindowFlags.NoCollapse, ImGuiWindowFlags.NoDocking, ImGuiWindowFlags.AlwaysAutoResize))
+		if not open then
+			show_qty_win = false
+		end
+		if show then
+			ImGui.Text("Enter %s Qty", label)
+			ImGui.Separator()
+			coin_qty = ImGui.InputTextWithHint("##Qty", labelHint, coin_qty)
+			if ImGui.Button("OK##qty") then
+				show_qty_win = false
+				do_process_coin = true
+			end
+			ImGui.SameLine()
+			if ImGui.Button("Cancel##qty") then
+				show_qty_win = false
+			end
+		end
+		ImGui.End()
+	end
+end
+
+local function draw_currency()
+	animItems:SetTextureCell(644 - EQ_ICON_OFFSET)
+	ImGui.DrawTextureAnimation(animItems, 20, 20)
+	ImGui.SameLine()
+	ImGui.TextColored(ImVec4(0, 1, 1, 1), "%s", myPlat)
+	if ImGui.IsItemHovered() then
+		ImGui.BeginTooltip()
+		ImGui.Text("%s Platinum", myPlat)
+		ImGui.EndTooltip()
+		if ImGui.IsItemClicked(ImGuiMouseButton.Left) then
+			show_qty_win = true
+			coin_type = 0
+		end
+	end
+
+	ImGui.SameLine()
+
+	animItems:SetTextureCell(645 - EQ_ICON_OFFSET)
+	ImGui.DrawTextureAnimation(animItems, 20, 20)
+	ImGui.SameLine()
+	ImGui.TextColored(ImVec4(0, 1, 1, 1), "%s", myGold)
+	if ImGui.IsItemHovered() then
+		ImGui.BeginTooltip()
+		ImGui.Text("%s Gold", myGold)
+		ImGui.EndTooltip()
+		if ImGui.IsItemClicked(ImGuiMouseButton.Left) then
+			show_qty_win = true
+			coin_type = 1
+		end
+	end
+
+	ImGui.SameLine()
+
+	animItems:SetTextureCell(646 - EQ_ICON_OFFSET)
+	ImGui.DrawTextureAnimation(animItems, 20, 20)
+	ImGui.SameLine()
+	ImGui.TextColored(ImVec4(0, 1, 1, 1), "%s", mySilver)
+	if ImGui.IsItemHovered() then
+		ImGui.BeginTooltip()
+		ImGui.Text("%s Silver", mySilver)
+		ImGui.EndTooltip()
+		if ImGui.IsItemClicked(ImGuiMouseButton.Left) then
+			show_qty_win = true
+			coin_type = 2
+		end
+	end
+
+	ImGui.SameLine()
+
+	animItems:SetTextureCell(647 - EQ_ICON_OFFSET)
+	ImGui.DrawTextureAnimation(animItems, 20, 20)
+	ImGui.SameLine()
+	ImGui.TextColored(ImVec4(0, 1, 1, 1), "%s", myCopper)
+	if ImGui.IsItemHovered() then
+		ImGui.BeginTooltip()
+		ImGui.Text("%s Copper", myCopper)
+		ImGui.EndTooltip()
+		if ImGui.IsItemClicked(ImGuiMouseButton.Left) then
+			show_qty_win = true
+			coin_type = 3
+		end
+	end
+end
+
+
 -- The beast - this routine is what builds our inventory.
 local function create_inventory()
 	if ((os.difftime(os.time(), start_time)) > INVENTORY_DELAY_SECONDS) or mq.TLO.Me.FreeInventory() ~= FreeSlots or clicked then
@@ -138,7 +263,10 @@ local function create_inventory()
 		items = {}
 		clickies = {}
 		augments = {}
-
+		myCopper = MySelf.Copper() or 0
+		mySilver = MySelf.Silver() or 0
+		myGold = MySelf.Gold() or 0
+		myPlat = MySelf.Platinum() or 0
 		local tmpUsedSlots = 0
 		for i = 1, 22, 1 do
 			local slot = mq.TLO.Me.Inventory(i)
@@ -752,16 +880,27 @@ local function RenderTabs()
 		ImGui.Text(string.format("Used/Free Slots "))
 		ImGui.SameLine()
 		ImGui.TextColored(FreeSlots > MIN_SLOTS_WARN and ImVec4(0.354, 1.000, 0.000, 0.500) or ImVec4(1.000, 0.354, 0.0, 0.5), "(%s/%s)", UsedSlots, FreeSlots)
-		ImGui.SeparatorText('Destroy Area"')
+		draw_currency()
+
+		ImGui.SeparatorText('Inventory / Destroy Area')
+		local sizeX = ImGui.GetWindowWidth()
+
+		if ImGui.BeginChild('CoinArea', ImVec2((sizeX / 2) - 10, 40), ImGuiChildFlags.Border) then
+			ImGui.TextDisabled("Inventory Coin/Item")
+		end
+		ImGui.EndChild()
+		if ImGui.IsItemHovered() and ImGui.IsMouseClicked(ImGuiMouseButton.Left) then
+			mq.cmd("/autoinventory")
+		end
+
+		ImGui.SameLine()
 
 		ImGui.PushStyleColor(ImGuiCol.ChildBg, ImVec4(0.2, 0, 0, 1))
-		if ImGui.BeginChild('DestroyArea', ImVec2(0.0, 40)) then
-			ImGui.TextDisabled("Drop Items Here to Destroy")
+		if ImGui.BeginChild('DestroyArea', ImVec2((sizeX / 2) - 15, 40), ImGuiChildFlags.Border) then
+			ImGui.TextDisabled("Destroy Item")
 		end
 		ImGui.EndChild()
 		ImGui.PopStyleColor()
-
-
 		if ImGui.IsItemHovered() and mq.TLO.Cursor() then
 			if ImGui.IsMouseClicked(ImGuiMouseButton.Left) then
 				mq.cmd("/destroy")
@@ -794,12 +933,6 @@ local function RenderTabs()
 			end
 		end
 		ImGui.EndChild()
-		if ImGui.IsItemHovered() and mq.TLO.Cursor() then
-			-- Autoinventory any items on the cursor if you click in the bag UI
-			if ImGui.IsMouseClicked(ImGuiMouseButton.Left) then
-				mq.cmd("/autoinventory")
-			end
-		end
 
 		display_item_on_cursor()
 	end
@@ -814,6 +947,8 @@ local function RenderGUI()
 	end
 
 	renderBtn()
+
+	draw_qty_win()
 end
 
 --- Main Script Loop
@@ -847,6 +982,10 @@ local function MainLoop()
 		if needSort then
 			sort_inventory()
 			needSort = false
+		end
+		if do_process_coin then
+			process_coin()
+			do_process_coin = false
 		end
 	end
 end
