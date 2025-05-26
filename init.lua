@@ -11,12 +11,21 @@ if not loadedExeternally then
 	Module.ThemeFile   = Module.ThemeFile == nil and string.format('%s/MyUI/ThemeZ.lua', mq.configDir) or Module.ThemeFile
 	Module.Theme       = require('defaults.themes')
 	Module.ThemeLoader = require('lib.theme_loader')
+	Module.Colors      = require('lib.colors')
+	Module.Utils       = require('lib.common')
 else
 	Module.Path = MyUI_Path
+	Module.Colors = MyUI_Colors
 	Module.ThemeFile = MyUI_ThemeFile
 	Module.Theme = MyUI_Theme
 	Module.ThemeLoader = MyUI_ThemeLoader
+	Module.Utils = MyUI_Utils
 end
+local Utils                                               = Module.Utils
+local ToggleFlags                                         = bit32.bor(
+	Utils.ImGuiToggleFlags.PulseOnHover,
+	Utils.ImGuiToggleFlags.SmilyKnob,
+	Utils.ImGuiToggleFlags.RightLabel)
 -- Constants
 local ICON_WIDTH                                          = 40
 local ICON_HEIGHT                                         = 40
@@ -46,7 +55,17 @@ local clickies                                            = {}
 local augments                                            = {}
 local bank_items                                          = {}
 local bank_augments                                       = {}
+local book                                                = {}
+local trade_list                                          = {}
+local display_tables                                      = {
+	augments = {},
+	items = {},
+	clickies = {},
+	bank_items = {},
+	bank_augments = {},
+}
 local needSort                                            = true
+local checkAll                                            = false
 local coin_type                                           = 0
 local coin_qty                                            = ''
 
@@ -63,8 +82,11 @@ local filter_text                                         = ""
 local utils                                               = require('mq.Utils')
 local settings                                            = {}
 local MySelf                                              = mq.TLO.Me
+local MyClass                                             = MySelf.Class()
 local myCopper, mySilver, myGold, myPlat, myWeight, myStr = 0, 0, 0, 0, 0, 0
 local bankCopper, bankSilver, bankGold, bankPlat          = 0, 0, 0, 0
+local book_timer                                          = 0
+local doTrade                                             = false
 local defaults                                            = {
 	MIN_SLOTS_WARN = 3,
 	show_item_background = true,
@@ -75,7 +97,8 @@ local defaults                                            = {
 	toggleModKey2 = 'None',
 	toggleModKey3 = 'None',
 	toggleMouse = 'None',
-	INVENTORY_DELAY_SECONDS = 2,
+	INVENTORY_DELAY_SECONDS = 20,
+	highlightUseable = true,
 }
 local modKeys                                             = {
 	"None",
@@ -99,6 +122,13 @@ local function loadSettings()
 			Module.Theme = dofile(Module.ThemeFile)
 		end
 	end
+
+	for k, v in pairs(defaults) do
+		if settings[k] == nil then
+			settings[k] = v
+		end
+	end
+
 	if settings.toggleModKey == '' then settings.toggleModKey = 'None' end
 	if settings.toggleModKey2 == '' then settings.toggleModKey2 = 'None' end
 	if settings.toggleModKey3 == '' then settings.toggleModKey3 = 'None' end
@@ -154,6 +184,16 @@ local function sort_inventory()
 		-- else
 		-- table.sort(items)
 	end
+	table.sort(augments, function(a, b) return a.Name() < b.Name() end)   -- Sort augments by name
+	table.sort(bank_augments, function(a, b) return a.Name() < b.Name() end) -- Sort banked augments by name TODO:: Impliment this display
+	table.sort(clickies, function(a, b) return a.Name() < b.Name() end)   -- Sort clickies by name
+	display_tables = {
+		augments = augments,
+		items = items,
+		clickies = clickies,
+		bank_items = bank_items,
+		bank_augments = bank_augments,
+	}
 end
 
 local function process_coin()
@@ -381,16 +421,39 @@ local function create_inventory()
 		end
 		for i = 23, 34, 1 do
 			local slot = mq.TLO.Me.Inventory(i)
-			if slot.Container() and slot.Container() > 0 then
+			if slot.Container() and (slot.Container() or 0) > 0 then
 				for j = 1, (slot.Container()), 1 do
 					if (slot.Item(j)()) then
+						local itemName = slot.Item(j).Name() or 'unknown'
 						table.insert(items, slot.Item(j))
+						if trade_list[itemName] == nil then
+							trade_list[itemName] = false -- Initialize trade_list with item names
+						end
 						tmpUsedSlots = tmpUsedSlots + 1
 						if slot.Item(j).Clicky() then
 							table.insert(clickies, slot.Item(j))
 						end
-						if slot.Item(j).AugType() > 0 then
+						if (slot.Item(j).AugType() or 0) > 0 then
 							table.insert(augments, slot.Item(j))
+						end
+
+						-- check spells and songs against our spellbook
+						local isSpell = itemName:find("Spell:")
+						local isSong = itemName:find("Song:")
+						local spellName = nil
+						if isSpell or isSong then
+							spellName = slot.Item(j).Spell.Name() --:gsub("Spell: ", "")
+							-- elseif isSong then
+							-- 	spellName = slot.Item(j).Spell.Name() --:gsub("Song: ", "")
+						end
+						if spellName ~= nil then
+							if not book[spellName] then
+								if mq.TLO.Me.Book(spellName)() then
+									book[spellName] = true
+								else
+									book[spellName] = false
+								end
+							end
 						end
 					end
 				end
@@ -445,7 +508,7 @@ local function display_bag_options()
 	if ImGui.BeginChild("OptionsChild") then
 		if ImGui.CollapsingHeader("Bag Options") then
 			local changed = false
-			sort_order.name, changed = ImGui.Checkbox("Name", sort_order.name)
+			sort_order.name, changed = Module.Utils.DrawToggle("Name", sort_order.name, ToggleFlags)
 			if changed then
 				needSort = true
 				settings.sort_order.name = sort_order.name
@@ -456,7 +519,7 @@ local function display_bag_options()
 			help_marker("Order items from your inventory sorted by the name of the item.")
 
 			local pressed = false
-			sort_order.stack, pressed = ImGui.Checkbox("Stack", sort_order.stack)
+			sort_order.stack, pressed = Module.Utils.DrawToggle("Stack", sort_order.stack, ToggleFlags)
 			if pressed then
 				needSort = true
 				settings.sort_order.stack = sort_order.stack
@@ -467,7 +530,7 @@ local function display_bag_options()
 			help_marker("Order items with the largest stacks appearing first.")
 
 			local pressed2 = false
-			show_item_background, pressed2 = ImGui.Checkbox("Show Slot Background", show_item_background)
+			show_item_background, pressed2 = Module.Utils.DrawToggle("Show Slot Background", show_item_background, ToggleFlags)
 			if pressed2 then
 				settings.show_item_background = show_item_background
 				mq.pickle(configFile, settings)
@@ -661,6 +724,7 @@ local function draw_item_icon(item, iconWidth, iconHeight, drawID, clickable)
 	-- Reset the cursor to start position, then fetch and draw the item icon
 	ImGui.SetCursorPos(cursor_x, cursor_y)
 	animItems:SetTextureCell(item.Icon() - EQ_ICON_OFFSET)
+	local canUse = (item.CanUse() and settings.HighlightUseable) or false
 	ImGui.DrawTextureAnimation(animItems, iconWidth, iconHeight)
 
 	-- Overlay the stack size text in the lower right corner
@@ -673,7 +737,7 @@ local function draw_item_icon(item, iconWidth, iconHeight, drawID, clickable)
 		ImGui.TextColored(ImVec4(0, 1, 1, 1), "%s", item.Stack())
 	end
 	local TextSize2 = ImGui.CalcTextSize(tostring(item.Charges()))
-	if item.Charges() >= 1 then
+	if item.Charges() >= 1 and item.Clicky() then
 		ImGui.SetCursorPos((cursor_x + offsetXCharges), cursor_y + offsetYCharges)
 		ImGui.DrawTextureAnimation(animBox, TextSize2, 4)
 		ImGui.SetCursorPos((cursor_x + offsetXCharges), cursor_y + offsetYCharges)
@@ -693,7 +757,43 @@ local function draw_item_icon(item, iconWidth, iconHeight, drawID, clickable)
 		ImGui.PushStyleColor(ImGuiCol.ButtonHovered, 0, 0.3, 0, 0.2)
 		ImGui.PushStyleColor(ImGuiCol.ButtonActive, 0, 0.3, 0, 0.3)
 	end
+	local toolTipSpell = ''
+	local colorChange = false
+	local lvlHigh = false
+	if canUse then
+		local isSpell = item.Name():find("Spell:")
+		local isSong = item.Name():find("Song:")
+		if isSpell or isSong then
+			local spellName = item.Spell.Name() --:gsub("Spell: ", ""):gsub("Song: ", "")
+			local spellLvl = mq.TLO.Spell(spellName).Level() or 0
+			if not book[spellName] then
+				if spellLvl > MySelf.Level() then
+					lvlHigh = true
+				end
+				colorChange = true
+				toolTipSpell = spellLvl > 0 and string.format("Lvl %s", spellLvl) or ''
+			else
+				toolTipSpell = "Already Know"
+			end
+		else
+			colorChange = true
+		end
+	end
+
+	if colorChange then
+		if lvlHigh then
+			ImGui.PushStyleColor(ImGuiCol.Button, 0.8, 0.1, 0.2, 0.2)
+		else
+			ImGui.PushStyleColor(ImGuiCol.Button, 0, 0.8, 0.2, 0.2)
+		end
+	end
+
 	ImGui.Button(btn_label(item), iconWidth, iconHeight)
+
+	if colorChange then
+		ImGui.PopStyleColor(1)
+	end
+
 	ImGui.PopStyleColor(3)
 	ImGui.PopID()
 
@@ -702,15 +802,27 @@ local function draw_item_icon(item, iconWidth, iconHeight, drawID, clickable)
 		local charges = item.Charges() or 0
 		local clicky = item.Clicky() or 'none'
 		ImGui.BeginTooltip()
-		ImGui.Text("Item: %s", item.Name())
-		ImGui.Text("Qty: %s", item.Stack() or 1)
-		ImGui.TextColored(ImVec4(0, 1, 1, 1), "Value: %0.1f Plat ", (item.Value() or 0) / 1000) -- 1000 copper - 1 plat
+		ImGui.Text("Item: ")
 		ImGui.SameLine()
-		ImGui.TextColored(ImVec4(1, 1, 0, 1), 'Trib: %s', (item.Tribute() or 0))
+		ImGui.TextColored(Module.Colors.color('tangarine'), "%s", item.Name())
+		if toolTipSpell ~= '' then
+			ImGui.Text("Scroll: ")
+			ImGui.SameLine()
+			ImGui.TextColored(Module.Colors.color('green'), "(%s)", toolTipSpell)
+		end
+		ImGui.Text("Type: ")
+		ImGui.SameLine()
+		ImGui.TextColored(Module.Colors.color('pink2'), "%s", item.Type())
+		ImGui.Text("Qty: ")
+		ImGui.SameLine()
+		ImGui.TextColored(Module.Colors.color('green'), "%s", item.Stack() or 1)
+		ImGui.TextColored(Module.Colors.color('teal'), "Value: %0.1f Plat ", (item.Value() or 0) / 1000) -- 1000 copper - 1 plat
+		ImGui.SameLine()
+		ImGui.TextColored(Module.Colors.color('yellow'), 'Trib: %s', (item.Tribute() or 0))
 		if clicky ~= 'none' then
 			ImGui.SeparatorText("Clicky Info")
-			ImGui.TextColored(ImVec4(0, 1, 0, 1), "Clicky: %s", clicky)
-			ImGui.TextColored(ImVec4(0, 1, 1, 1), "Charges: %s", charges >= 0 and charges or 'Infinite')
+			ImGui.TextColored(Module.Colors.color('green'), "Clicky: %s", clicky)
+			ImGui.TextColored(Module.Colors.color('teal'), "Charges: %s", charges >= 0 and charges or 'Infinite')
 		end
 		ImGui.SeparatorText("Click Actions")
 		if clickable then
@@ -721,7 +833,8 @@ local function draw_item_icon(item, iconWidth, iconHeight, drawID, clickable)
 		ImGui.EndTooltip()
 	end
 	if clickable then
-		if ImGui.IsItemClicked(ImGuiMouseButton.Left) and not mq.TLO.Me.Casting() then
+		if ImGui.IsItemClicked(ImGuiMouseButton.Left) then
+			if mq.TLO.Me.Casting() ~= nil or MyClass == 'BRD' then return end
 			if item.ItemSlot2() == -1 then
 				mq.cmd("/itemnotify " .. item.ItemSlot() .. " leftmouseup")
 			else
@@ -732,7 +845,8 @@ local function draw_item_icon(item, iconWidth, iconHeight, drawID, clickable)
 		if ImGui.IsKeyDown(ImGuiMod.Ctrl) and ImGui.IsItemClicked(ImGuiMouseButton.Right) then
 			local link = item.ItemLink('CLICKABLE')()
 			mq.cmdf('/executelink %s', link)
-		elseif ImGui.IsItemClicked(ImGuiMouseButton.Right) and not mq.TLO.Me.Casting() then
+		elseif ImGui.IsItemClicked(ImGuiMouseButton.Right) then
+			if mq.TLO.Me.Casting() ~= nil or MyClass == 'BRD' then return end
 			mq.cmdf('/useitem "%s"', item.Name())
 			clicked = true
 		end
@@ -777,9 +891,9 @@ local function display_bag_content()
 		local bag_cols = math.floor(bag_window_width / BAG_ITEM_SIZE)
 		local temp_bag_cols = 1
 
-		for index, _ in ipairs(items) do
-			if string.match(string.lower(items[index].Name()), string.lower(filter_text)) then
-				draw_item_icon(items[index], ICON_WIDTH, ICON_HEIGHT, 'inv' .. index, true)
+		for index, _ in ipairs(display_tables.items or {}) do
+			if string.match(string.lower(display_tables.items[index].Name()), string.lower(filter_text)) then
+				draw_item_icon(display_tables.items[index], ICON_WIDTH, ICON_HEIGHT, 'inv' .. index, true)
 				if bag_cols > temp_bag_cols then
 					temp_bag_cols = temp_bag_cols + 1
 					ImGui.SameLine()
@@ -802,9 +916,9 @@ local function display_bank_content()
 		local bag_cols = math.floor(bag_window_width / BAG_ITEM_SIZE)
 		local temp_bag_cols = 1
 
-		for index, _ in ipairs(bank_items) do
-			if string.match(string.lower(bank_items[index].Name()), string.lower(filter_text)) then
-				draw_item_icon(bank_items[index], ICON_WIDTH, ICON_HEIGHT, 'bank' .. index, false)
+		for index, _ in ipairs(display_tables.bank_items or {}) do
+			if string.match(string.lower(display_tables.bank_items[index].Name()), string.lower(filter_text)) then
+				draw_item_icon(display_tables.bank_items[index], ICON_WIDTH, ICON_HEIGHT, 'bank' .. index, false)
 				if bag_cols > temp_bag_cols then
 					temp_bag_cols = temp_bag_cols + 1
 					ImGui.SameLine()
@@ -826,9 +940,9 @@ local function display_clickies()
 		local bag_cols = math.floor(bag_window_width / BAG_ITEM_SIZE)
 		local temp_bag_cols = 1
 
-		for index, _ in ipairs(clickies) do
-			if string.match(string.lower(clickies[index].Name()), string.lower(filter_text)) then
-				draw_item_icon(clickies[index], ICON_WIDTH, ICON_HEIGHT, 'clicky' .. index, true)
+		for index, _ in ipairs(display_tables.clickies or {}) do
+			if string.match(string.lower(display_tables.clickies[index].Name()), string.lower(filter_text)) then
+				draw_item_icon(display_tables.clickies[index], ICON_WIDTH, ICON_HEIGHT, 'clicky' .. index, true)
 				if bag_cols > temp_bag_cols then
 					temp_bag_cols = temp_bag_cols + 1
 					ImGui.SameLine()
@@ -850,9 +964,9 @@ local function display_augments()
 		local bag_cols = math.floor(bag_window_width / BAG_ITEM_SIZE)
 		local temp_bag_cols = 1
 
-		for index, _ in ipairs(augments) do
-			if string.match(string.lower(augments[index].Name()), string.lower(filter_text)) then
-				draw_item_icon(augments[index], ICON_WIDTH, ICON_HEIGHT, 'augments' .. index, true)
+		for index, _ in ipairs(display_tables.augments or {}) do
+			if string.match(string.lower(display_tables.augments[index].Name()), string.lower(filter_text)) then
+				draw_item_icon(display_tables.augments[index], ICON_WIDTH, ICON_HEIGHT, 'augments' .. index, true)
 				if bag_cols > temp_bag_cols then
 					temp_bag_cols = temp_bag_cols + 1
 					ImGui.SameLine()
@@ -868,7 +982,16 @@ end
 
 local function display_details()
 	ImGui.SetWindowFontScale(1.0)
-	if ImGui.BeginTable("Details", 8, bit32.bor(ImGuiTableFlags.Borders, ImGuiTableFlags.ScrollY, ImGuiTableFlags.Resizable, ImGuiTableFlags.Hideable, ImGuiTableFlags.Reorderable)) then
+	if ImGui.Button("Trade Selected Items") then
+		doTrade = true
+	end
+	ImGui.SameLine()
+	checkAll = false
+	if ImGui.Button("Check All") then
+		checkAll = true
+	end
+	if ImGui.BeginTable("Details", 9, bit32.bor(ImGuiTableFlags.Borders, ImGuiTableFlags.ScrollY, ImGuiTableFlags.Resizable, ImGuiTableFlags.Hideable, ImGuiTableFlags.Reorderable)) then
+		ImGui.TableSetupColumn('##Trade', ImGuiTableColumnFlags.WidthFixed, 40)
 		ImGui.TableSetupColumn('Icon', ImGuiTableColumnFlags.WidthStretch)
 		ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthFixed, 100)
 		ImGui.TableSetupColumn("Value", ImGuiTableColumnFlags.WidthStretch)
@@ -879,21 +1002,27 @@ local function display_details()
 		ImGui.TableSetupColumn('Augment', ImGuiTableColumnFlags.WidthStretch)
 		ImGui.TableSetupScrollFreeze(0, 1)
 		ImGui.TableHeadersRow()
-		for index, _ in ipairs(items) do
+		for index, _ in ipairs(display_tables.items or {}) do
 			ImGui.PushID(index)
-			if string.match(string.lower(items[index].Name()), string.lower(filter_text)) then
-				local item = items[index]
+			if string.match(string.lower(display_tables.items[index].Name()), string.lower(filter_text)) then
+				local item = display_tables.items[index]
 				local clicky = item.Clicky() or 'No'
 				local charges = item.Charges()
 				local lbl = 'Infinite'
 				if charges == -1 then
 					lbl = 'Infinite'
-				elseif charges == 0 then
+				elseif charges == 0 or clicky == 'No' then
 					lbl = 'None'
 				else
 					lbl = charges
 				end
 				ImGui.TableNextRow()
+				ImGui.TableNextColumn()
+				if checkAll then
+					trade_list[item.Name()] = true -- Check all items if the button is pressed
+				end
+				trade_list[item.Name()], _ = ImGui.Checkbox(string.format("##Trade_%s", index), trade_list[item.Name()])
+
 				ImGui.TableNextColumn()
 				draw_item_icon(item, 20, 20, 'details' .. index, true)
 				ImGui.TableNextColumn()
@@ -913,7 +1042,7 @@ local function display_details()
 				ImGui.TableNextColumn()
 				ImGui.Text("%s", item.Worn() or 'No')
 				ImGui.TableNextColumn()
-				ImGui.TextColored(ImVec4(0, 1, 1, 1), clicky)
+				ImGui.TextColored(Module.Colors.color('teal'), clicky)
 				ImGui.TableNextColumn()
 				ImGui.Text("%s", lbl)
 				ImGui.TableNextColumn()
@@ -927,6 +1056,76 @@ local function display_details()
 		end
 		ImGui.EndTable()
 	end
+end
+
+local function ClickTrade()
+	mq.delay(3000)
+	if mq.TLO.Window("TradeWnd").Open() then
+		mq.TLO.Window("TradeWnd").Child("TRDW_Trade_Button").LeftMouseUp()
+	end
+	mq.delay(3000)
+	if mq.TLO.Window("GiveWnd").Open() then
+		mq.TLO.Window("GiveWnd").Child("GVW_Give_Button").LeftMouseUp()
+	end
+	mq.delay(3000)
+end
+
+local function TradeItems()
+	local target = mq.TLO.Target
+	if not target() and not target.Type() == "PC" and (target.Name() or "unknown") ~= MyUI_CharLoaded then
+		printf('[\ayBigBag\ax] \amTarget is NOT selected\ax')
+		doTrade = false
+		return
+	end
+	local target_id = target.ID() or 0
+	if target.Distance() > 15 then
+		mq.cmdf("/nav id %s dist=12", target_id)
+		while mq.TLO.Navigation.Active() do
+			mq.delay(1000, function() return not mq.TLO.Navigation.Active() end)
+		end
+	end
+
+	local counter = 1
+	for itemName, trade in pairs(trade_list) do
+		if trade then
+			if mq.TLO.FindItem(itemName).ID() ~= nil then
+				local itemSlot = mq.TLO.FindItem('=' .. itemName).ItemSlot() or 0
+				local itemSlot2 = mq.TLO.FindItem('=' .. itemName).ItemSlot2() or 0
+				if itemSlot == 0 or itemSlot2 == 0 then
+					goto Next -- Skip if we don't have a valid item slot
+				end
+				local pickup1 = itemSlot - 22
+				local pickup2 = itemSlot2 + 1
+
+				--grab the whole stack, or specific amount
+				mq.cmd('/shift /itemnotify in pack' .. pickup1 .. ' ' .. pickup2 .. ' leftmouseup')
+				-- mq.cmdf("/itemnotify %s leftmouseup", itemName)
+				mq.delay(3000, function() return mq.TLO.Cursor() ~= nil end)
+				if (mq.TLO.Cursor.Container() or 0) > 0 then
+					mq.cmd("/autoinventory")
+					mq.delay(3000, function() return mq.TLO.Cursor() == nil end)
+				end
+				if mq.TLO.Cursor() ~= nil then
+					mq.cmd("/click left target")
+				end
+				mq.delay(3000, function() return mq.TLO.Cursor() == nil end)
+
+				if counter == 8 then
+					ClickTrade()
+					mq.delay(3000, function() return not mq.TLO.Window("TradeWnd").Open() end)
+					counter = 1
+				else
+					counter = counter + 1
+				end
+			end
+			::Next::
+			trade_list[itemName] = false -- Reset the trade list for this item
+		end
+	end
+	ClickTrade()
+	doTrade = false
+	trade_list = {}
+	create_inventory()
 end
 
 local function BigButtonTooltip()
@@ -966,23 +1165,34 @@ local function renderBtn()
 	end
 
 	if showBtn then
+		local cursorX, cursorY = ImGui.GetCursorScreenPos()
 		if FreeSlots > MIN_SLOTS_WARN then
 			animMini:SetTextureCell(3635 - EQ_ICON_OFFSET)
 			ImGui.DrawTextureAnimation(animMini, 34, 34, true)
+			ImGui.SetCursorPos(20, 20)
+			ImGui.Text("%s", FreeSlots)
 		else
 			animMini:SetTextureCell(3632 - EQ_ICON_OFFSET)
 			ImGui.DrawTextureAnimation(animMini, 34, 34, true)
+			ImGui.SetCursorPos(20, 20)
+			ImGui.Text("%s", FreeSlots)
 		end
+
+		ImGui.SetCursorScreenPos(cursorX, cursorY)
+		ImGui.PushStyleColor(ImGuiCol.Button, ImVec4(0, 0, 0, 0))
+		ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ImVec4(0, 0.5, 0.5, 0.5))
+		ImGui.PushStyleColor(ImGuiCol.ButtonActive, ImVec4(0, 0, 0, 0))
+		if ImGui.Button("##BigBagsBtn", ImVec2(34, 34)) then
+			Module.ShowGUI = not Module.ShowGUI
+		end
+		ImGui.PopStyleColor(3)
 
 		if ImGui.IsItemHovered() then
 			BigButtonTooltip()
-			if ImGui.IsMouseReleased(ImGuiMouseButton.Left) then
-				Module.ShowGUI = not Module.ShowGUI
-			end
 		end
 
 		if toggleMouse ~= 'None' then
-			if ImGui.IsMouseReleased(ImGuiMouseButton[toggleMouse]) then
+			if ImGui.IsMouseReleased(ImGuiMouseButton[toggleMouse]) and not ImGui.IsKeyDown(ImGuiMod.Ctrl) then
 				Module.ShowGUI = not Module.ShowGUI
 			end
 		end
@@ -1054,6 +1264,14 @@ local function RenderTabs()
 				mq.cmd("/destroy")
 			end
 		end
+		local pressed
+		ImGui.SetNextItemWidth(100)
+		settings.HighlightUseable, pressed = Module.Utils.DrawToggle("Highlight Useable", settings.HighlightUseable, Utils.ImGuiToggleFlags.StarKnob)
+		if pressed then
+			mq.pickle(configFile, settings)
+		end
+		ImGui.SameLine()
+		help_marker("Highlight items that are useable by your class.")
 
 		ImGui.Separator()
 		if ImGui.BeginChild("BagTabs") then
@@ -1116,6 +1334,7 @@ local function init()
 	Module.IsRunning = true
 	loadSettings()
 	create_inventory()
+	-- get_book()
 	mq.bind("/bigbag", Module.CommandHandler)
 
 	if not loadedExeternally then
@@ -1161,6 +1380,11 @@ function Module.MainLoop()
 		UpdateCoin()
 		coin_timer = os.time()
 	end
+
+	if doTrade then
+		TradeItems()
+	end
+
 	myWeight = MySelf.CurrentWeight()
 	myStr = MySelf.STR()
 end
